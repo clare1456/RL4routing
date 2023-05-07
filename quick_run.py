@@ -26,7 +26,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 #%%
 # 1. Environment
 # create 2 vectorized environments both for training and testing
-nodeNum = 5
+nodeNum = 20
 env = EnvTSP(lmt_node_num=nodeNum)
 train_envs = DummyVectorEnv([lambda: EnvTSP(lmt_node_num=nodeNum) for _ in range(20)])
 test_envs = DummyVectorEnv([lambda: EnvTSP(lmt_node_num=nodeNum) for _ in range(10)])
@@ -97,7 +97,7 @@ critic = Critic(net, device=device).to(device)
 actor_critic = ActorCritic(actor, critic)
 
 # optimizer of the actor and the critic
-optim = torch.optim.AdamW(actor_critic.parameters(), lr=1e-5)
+optim = torch.optim.AdamW(actor_critic.parameters(), lr=1e-3)
 
 #%%
 # 3. Policy
@@ -115,7 +115,7 @@ policy = MyPolicy(actor, critic, optim, distributions, action_space=env.action_s
 
 #%%
 # 4. Collector
-train_collector = Collector(policy, train_envs, VectorReplayBuffer(20000, len(train_envs)), exploration_noise=True)
+train_collector = Collector(policy, train_envs, VectorReplayBuffer(2000000, len(train_envs)), exploration_noise=True)
 test_collector = Collector(policy, test_envs)
 
 #%%

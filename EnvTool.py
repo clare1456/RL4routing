@@ -17,7 +17,7 @@ import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 class EnvESPPRC(gym.Env):
-    def __init__(self, file_name="solomon_100\\C101.txt", lmt_node_num=None):
+    def __init__(self, file_name="solomon_100\\R101.txt", lmt_node_num=None):
         super().__init__()
         self.graph = Graph(file_name, limit_node_num=lmt_node_num) 
         self.state_dim = 7 # state dimention: x, y, e, l, s, dual
@@ -151,8 +151,8 @@ class EnvESPPRC(gym.Env):
                     continue
                 if self._check_infeasible(idx):
                     mask[idx] = 1
-        if sum(mask) >= len(mask):
-            mask[0] = 0
+        if mask.sum() == len(mask):
+            mask[0] = False
         return mask
 
     def stop_condition(self, action):
@@ -175,14 +175,14 @@ class EnvESPPRC(gym.Env):
     def human_test(self, render=False):
         """human_test (test env with human iteraction)
         """
-        state = self.reset()
-        done = 0
-        mask = [False] * self.graph.nodeNum
-        step_cnt = 0
-        reward_sum = 0
         print("Game Start!")
         is_stop = False
         while is_stop == False:
+            done = 0
+            state, info = self.reset()
+            mask = info['mask']
+            step_cnt = 0
+            reward_sum = 0
             while done != 1:
                 print("Step {}".format(step_cnt))
                 choices = [idx for idx in range(self.graph.nodeNum) if mask[idx] == 0]
@@ -191,8 +191,6 @@ class EnvESPPRC(gym.Env):
                 while True:
                     try:
                         action = int(action)
-                        if action not in choices:
-                            raise ValueError
                         break
                     except:
                         action = input("  Please type right action: ") 
@@ -207,11 +205,6 @@ class EnvESPPRC(gym.Env):
                 self.render()
             flag = input("\nTry again? (yes / no)")
             is_stop = flag == "no"
-            state = self.reset()
-            done = 0
-            mask = [False] * self.graph.nodeNum
-            step_cnt = 0
-            reward_sum = 0
 
 class EnvVRPTW(EnvESPPRC):
     def stop_condition(self, action):
@@ -222,11 +215,12 @@ class EnvVRPTW(EnvESPPRC):
 
 class EnvTSP(EnvVRPTW):
     def reset(self):
-        result = super().reset()
         self.check_demand = False
         self.check_timeWindow = False
+        state, info = super().reset()
         self.visited[0] = True
-        return result
+        info['mask'] = self._get_mask()
+        return state, info
     
     def stop_condition(self, action):
         return sum(self.visited) == self.graph.nodeNum
@@ -237,7 +231,7 @@ if __name__ == "__main__":
     # env = EnvVRPTW(file_name, lmt_node_num=5)
     env = EnvTSP(file_name, lmt_node_num=5)
     # human interact test
-    env.human_test(render=True)
+    env.human_test(render=False)
     
 
 
