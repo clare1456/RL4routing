@@ -142,7 +142,7 @@ if __name__ == "__main__":
     # solve model with gurobi solver
     file_name = "solomon_100/R101.txt"
     # 101\102-1s, 101_25-0.02s, 103-200s
-    graph = GraphTool.Graph(file_name, limit_node_num=20)
+    graph = GraphTool.Graph(file_name, limit_node_num=10)
     alg = ModelHandler(graph) #! TSP model
     time1 = time.time()
     routes = alg.run()

@@ -26,7 +26,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 #%%
 # 1. Environment
 # create 2 vectorized environments both for training and testing
-nodeNum = 20
+nodeNum = 10
 env = EnvTSP(lmt_node_num=nodeNum)
 train_envs = DummyVectorEnv([lambda: EnvTSP(lmt_node_num=nodeNum) for _ in range(20)])
 test_envs = DummyVectorEnv([lambda: EnvTSP(lmt_node_num=nodeNum) for _ in range(10)])
