@@ -195,6 +195,7 @@ class EnvESPPRC(gym.Env):
                     except:
                         action = input("  Please type right action: ") 
                 state, reward, done, info = self.step(int(action))
+                print(state)
                 mask = info["mask"].tolist()
                 reward_sum += reward
                 print("  reward = {:.2f}, done = {}".format(reward, done))
