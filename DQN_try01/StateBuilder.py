@@ -77,9 +77,9 @@ class StateBuilder_node01_mask(StateBuilder):
         node = np.argmax(state[:self.node_num])
         return node
 
-class StateBuilder_node_now_xy(StateBuilder):
+class StateBuilder_1xy(StateBuilder):
     def __init__(self, node_num:int) -> None:
-        super(StateBuilder_node_now_xy, self).__init__()
+        super(StateBuilder_1xy, self).__init__()
         self.node_num = node_num
         self.state_dim = 2
         pass   
@@ -98,9 +98,9 @@ class StateBuilder_node_now_xy(StateBuilder):
         print("[zy] ERROR: StateBuilder_node_now_xy.cal_node() cannot find node")
         return -1
 
-class StateBuilder_node_all_xy(StateBuilder):
+class StateBuilder_allxy(StateBuilder):
     def __init__(self, node_num:int) -> None:
-        super(StateBuilder_node_all_xy, self).__init__()
+        super(StateBuilder_allxy, self).__init__()
         self.node_num = node_num
         self.state_dim = 2 * (node_num + 2)
         pass   
@@ -120,12 +120,12 @@ class StateBuilder_node_all_xy(StateBuilder):
         print("[zy] ERROR: StateBuilder_node_all_xy.cal_node() cannot find node")
         return -1
 
-class StateBuilder_node01_mask_all_xy(StateBuilder):
+class StateBuilder_node01_mask_allxy(StateBuilder):
     def __init__(self, node_num:int) -> None:
-        super(StateBuilder_node01_mask_all_xy, self).__init__()        
+        super(StateBuilder_node01_mask_allxy, self).__init__()        
         self.node_num = node_num
         self.sub_builder_1 = StateBuilder_node01_mask(node_num)
-        self.sub_builder_2 = StateBuilder_node_all_xy(node_num)
+        self.sub_builder_2 = StateBuilder_allxy(node_num)
         self.state_dim = self.sub_builder_1.state_dim + self.sub_builder_2.state_dim
         pass   
 

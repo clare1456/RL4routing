@@ -20,8 +20,12 @@ class Trainer:
         random.seed(self.args.seed)
         torch.manual_seed(self.args.seed)
         pbar = tqdm.tqdm(range(self.args.episode_num))
+        d_epsilon = (self.args.epsilon_final - self.args.epsilon) / self.args.episode_num
         for episode_i in range(self.args.episode_num):
-            Utils.log_info("epsilon", str(self.agent.epsilon))
+            if episode_i < self.args.episode_num - self.args.episode_4greedy:
+                self.agent.epsilon += d_epsilon
+            else:
+                self.agent.epsilon = 0
             state_info, info = self.env.reset()
             state = self.state_builder.cal_state(state_info, info)
             episode_reward = 0
@@ -37,14 +41,13 @@ class Trainer:
                 # interact with env
                 start = time.time()
                 next_state_info, reward, done, info = self.env.step(action) 
-                mask = torch.tensor(info["mask"], dtype=torch.long)
                 next_state = self.state_builder.cal_state(next_state_info, info)
                 route.append(self.state_builder.cal_node(next_state, state_info, info))
                 env_interact_timecost += time.time() - start
                 episode_reward += reward
                 # save experience and learn
                 start = time.time()
-                self.agent.save_experience(state, action, reward, next_state, done, mask)
+                self.agent.save_experience(state, action, reward, next_state, done, info["mask"])
                 update_timecost += time.time() - start 
                 # log
                 # Utils.log_info("common_log", "next_state_info = " + str(next_state_info))

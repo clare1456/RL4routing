@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 import sys
 sys.path.append('.')
 from . import Utils
@@ -13,15 +14,17 @@ class Args:
         """ Train """
         self.env_name = "CartPole-v1"    # env name
         self.episode_num = 1000           # number of episodes
+        self.episode_4greedy = 100        # number of episodes for pure greedy
         self.pool_size = 100000           # capacity of experience replay
-        self.warmup_size = 130          # number of warmup steps
+        self.warmup_size = 1000          # number of warmup steps
         self.batch_size = 128             # batch size
         self.hidden_size = 128         # number of neurons in hidden layer
-        self.update_steps = 1           # steps to update q network
+        self.update_steps = 20           # steps to update q network
         self.learning_rate = 1e-3       # learning rate
         self.sync_target_steps = 20      # steps to sync target network
-        self.epsilon = 0.6               # greedy policy
-        self.gamma = 0.2                 # reward discount
+        self.epsilon = 0.6               # greedy policy's first epsilon
+        self.epsilon_final = 0.1         # greedy policy's final epsilon
+        self.gamma = 0.7                 # reward discount
         self.seed = 1                    # random seed
         self.device = "cpu"              # device
         """ File """

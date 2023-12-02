@@ -79,8 +79,7 @@ class DQNAgent(Agent):
         """ 
         predict action (greedy) for evaluation
         """
-        mask = torch.tensor(info["mask"], dtype=torch.long)
-        q_values = self._cal_q_values(state, mask)
+        q_values = self._cal_q_values(state, info["mask"])
         Utils.log_info("common_log", "greedy_action q_values = " + str(q_values[:]))
         action = torch.argmax(q_values).item()
         return action
@@ -106,13 +105,12 @@ class DQNAgent(Agent):
         if len(self.replay_buffer.memory) >= self.args.warmup_size:
             # sample experiences
             start = time.time()
-            s_list, a_list, r_list, _s_list, done_list, mask_list = self.replay_buffer.sample(self.args.batch_size)
+            s_list, a_list, r_list, _s_list, done_list, mask = self.replay_buffer.sample(self.args.batch_size)
             s_tensor = torch.tensor(s_list, dtype=torch.float32, device=self.args.device)
             a_tensor = torch.tensor(a_list, dtype=torch.long, device=self.args.device)
             r_tensor = torch.tensor(r_list, dtype=torch.float32, device=self.args.device)
             _s_tensor = torch.tensor(_s_list, dtype=torch.float32, device=self.args.device)
             done_tensor = torch.tensor(done_list, dtype=torch.float32, device=self.args.device)
-            mask = mask_list
             sample_timecost = time.time() - start
             # calculate loss
             start = time.time()
@@ -146,22 +144,18 @@ class DQNAgent(Agent):
     def _get_target_value(self, s_tensor, a_tensor, r_tensor, _s_tensor, done_tensor, mask):
         # calculate target value
         q_values = self._cal_q_values(_s_tensor, mask)
-        print()
-        print(q_values)
-        print(torch.max(q_values, dim=1))
-        print(torch.max(q_values, dim=1)[0])
-        print(torch.max(q_values, dim=1)[1])
         return r_tensor + self.args.gamma * torch.max(q_values, dim=1)[0] * (1-done_tensor)
     
     def _cal_q_values(self, state, mask):
         q_values = self.target_q_net(state)
-        q_values -= torch.inf * mask
+        mask = torch.tensor(mask)
+        q_values = torch.where(mask, -torch.inf, q_values)
         return q_values
 
     def _update_coeff(self):
         # update coefficents
         if self.step_cnt % 100 == 0:
-            self.epsilon = self.epsilon * 0.99
+            # self.epsilon = self.epsilon * 0.99
             self.learning_rate = self.learning_rate * 0.998
         # record coefficents
         self.writer.add_scalar_to_buffer("coeff/epsilon", self.epsilon, self.step_cnt)
