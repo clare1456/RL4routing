@@ -5,32 +5,35 @@ import time
 import os
 from .Nets import *
 from .ReplayBuffer import ReplayBuffer
+from . import Utils
 
 class Agent:
-    def __init__(self, state_space, action_space, args, writer):
+    def __init__(self, state_space_dim, action_space, args, writer):
         # read args
-        self.state_space = state_space
+        self.state_space_dim = state_space_dim
         self.action_space = action_space
         self.args = args
         self.writer = writer
     
-    def take_action(self, state):
+    def take_action(self, state, info):
         """ 
         epsilon-greedy policy for exploration
         """
+        Utils.log_info("common_log", "mask = " + str(info["mask"]))
         if np.random.uniform() < self.epsilon:
-            action = self.random_action(state)
+            action = self.random_action(state, info)
         else:
-            action = self.greedy_action(state)
+            action = self.greedy_action(state, info)
+        Utils.log_info("common_log", "action = " + str(action))
         return action
     
-    def random_action(self, state):
+    def random_action(self, state, info):
         """
         explore action randomly for training
         """
         raise NotImplementedError
     
-    def greedy_action(self, state):
+    def greedy_action(self, state, info):
         """ 
         predict action (greedy) for evaluation
         """
@@ -50,13 +53,13 @@ class Agent:
 
 
 class DQNAgent(Agent):
-    def __init__(self, state_space, action_space, args, writer):
-        super(DQNAgent, self).__init__(state_space, action_space, args, writer)
+    def __init__(self, state_space_dim, action_space, args, writer):
+        super(DQNAgent, self).__init__(state_space_dim, action_space, args, writer)
         # set properties
         self.epsilon = args.epsilon
         self.learning_rate = args.learning_rate
-        self.q_net = QNet(self.state_space, self.args.hidden_size, self.action_space, self.args.device).to(self.args.device)
-        self.target_q_net = QNet(self.state_space, self.args.hidden_size, self.action_space, self.args.device).to(self.args.device)
+        self.q_net = QNet(self.state_space_dim, self.args.hidden_size, self.action_space, self.args.device).to(self.args.device)
+        self.target_q_net = QNet(self.state_space_dim, self.args.hidden_size, self.action_space, self.args.device).to(self.args.device)
         self.target_q_net.load_state_dict(self.q_net.state_dict())
         self.q_net.train()
         self.optimizer = torch.optim.Adam(self.q_net.parameters(), lr=self.learning_rate)
@@ -67,23 +70,27 @@ class DQNAgent(Agent):
         """ 
         explore action randomly for training
         """
-        action = np.random.randint(0, self.action_space)
+        zero_indexs = np.where(info["mask"] == False)[0]
+        action = np.random.choice(zero_indexs)
+        Utils.log_info("common_log", "random_action")
         return action
     
     def greedy_action(self, state, info):
         """ 
         predict action (greedy) for evaluation
         """
-        q_values = self.q_net(state)
+        mask = torch.tensor(info["mask"], dtype=torch.long)
+        q_values = self._cal_q_values(state, mask)
+        Utils.log_info("common_log", "greedy_action q_values = " + str(q_values[:]))
         action = torch.argmax(q_values).item()
         return action
     
-    def save_experience(self, state, action, reward, next_state, done):
+    def save_experience(self, state, action, reward, next_state, done, mask):
         """
         save experience in !!each step!!, and update
         """
         # save experience
-        self.replay_buffer.add(state, action, reward, next_state, done)
+        self.replay_buffer.add(state, action, reward, next_state, done, mask)
         # update q network
         if self.step_cnt % self.args.update_steps == 0:
             self._update()
@@ -99,17 +106,18 @@ class DQNAgent(Agent):
         if len(self.replay_buffer.memory) >= self.args.warmup_size:
             # sample experiences
             start = time.time()
-            s_list, a_list, r_list, _s_list, done_list = self.replay_buffer.sample(self.args.batch_size)
+            s_list, a_list, r_list, _s_list, done_list, mask_list = self.replay_buffer.sample(self.args.batch_size)
             s_tensor = torch.tensor(s_list, dtype=torch.float32, device=self.args.device)
             a_tensor = torch.tensor(a_list, dtype=torch.long, device=self.args.device)
             r_tensor = torch.tensor(r_list, dtype=torch.float32, device=self.args.device)
             _s_tensor = torch.tensor(_s_list, dtype=torch.float32, device=self.args.device)
             done_tensor = torch.tensor(done_list, dtype=torch.float32, device=self.args.device)
+            mask = mask_list
             sample_timecost = time.time() - start
             # calculate loss
             start = time.time()
             predict_value = self.q_net(s_tensor).gather(1, a_tensor.unsqueeze(1)).squeeze(1)
-            target_value = self._get_target_value(s_tensor, a_tensor, r_tensor, _s_tensor, done_tensor)
+            target_value = self._get_target_value(s_tensor, a_tensor, r_tensor, _s_tensor, done_tensor, mask)
             loss = torch.mean(F.mse_loss(predict_value, target_value.detach()))
             cal_loss_timecost = time.time() - start
             # update q network
@@ -135,10 +143,21 @@ class DQNAgent(Agent):
                 self.writer.add_scalar_to_buffer("net/std_grad", torch.std(torch.abs(self.q_net.fc1.weight.grad)).cpu(), self.step_cnt)
      
     @torch.no_grad()
-    def _get_target_value(self, s_tensor, a_tensor, r_tensor, _s_tensor, done_tensor):
+    def _get_target_value(self, s_tensor, a_tensor, r_tensor, _s_tensor, done_tensor, mask):
         # calculate target value
-        return r_tensor + self.args.gamma * torch.max(self.target_q_net(_s_tensor), dim=1)[0] * (1-done_tensor)
+        q_values = self._cal_q_values(_s_tensor, mask)
+        print()
+        print(q_values)
+        print(torch.max(q_values, dim=1))
+        print(torch.max(q_values, dim=1)[0])
+        print(torch.max(q_values, dim=1)[1])
+        return r_tensor + self.args.gamma * torch.max(q_values, dim=1)[0] * (1-done_tensor)
     
+    def _cal_q_values(self, state, mask):
+        q_values = self.target_q_net(state)
+        q_values -= torch.inf * mask
+        return q_values
+
     def _update_coeff(self):
         # update coefficents
         if self.step_cnt % 100 == 0:
