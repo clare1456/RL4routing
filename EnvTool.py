@@ -10,7 +10,7 @@ Created Date: Monday February 20th 2023
 import torch, numpy as np
 import matplotlib.pyplot as plt
 import random
-import gym as gym
+import gymnasium as gym
 from GraphTool import Graph
 
 import os
@@ -22,7 +22,7 @@ class EnvESPPRC(gym.Env):
         self.graph = Graph(file_name, limit_node_num=lmt_node_num) 
         self.state_dim = 7 # state dimention: x, y, e, l, s, dual
         self.action_space = gym.spaces.Discrete(self.graph.nodeNum)
-        self.observation_space = gym.spaces.Box(-np.inf, np.inf, ((self.graph.nodeNum+2), self.state_dim), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(-np.inf, np.inf, ((self.graph.nodeNum+2)*self.state_dim, ), dtype=np.float32)
         self.dualValue = np.arange(self.graph.nodeNum)
         self.end_pos = 0 # terminal position, depot index, stay static
         self.cur_pos = 0 # initial position, varies in process
@@ -61,7 +61,7 @@ class EnvESPPRC(gym.Env):
         node_state[6] = self.dualValue[idx] # dual value
         return node_state    
 
-    def reset(self):
+    def reset(self, seed=None):
         """reset reset each episode
         """
         self.visited = np.zeros(self.graph.nodeNum, dtype=bool)
@@ -72,7 +72,7 @@ class EnvESPPRC(gym.Env):
         self._set_state(self.cur_pos)
         info = {}
         info["mask"] = self._get_mask()
-        return self.cur_state, info
+        return self.cur_state.flatten(), info
 
     def _set_state(self, cur_pos):
         """_set_state set state each episode, only need to set cur_pos state
@@ -90,8 +90,7 @@ class EnvESPPRC(gym.Env):
         if self._check_infeasible(action):
             reward = -1000
             done = True
-            info["mask"] = self._get_mask()
-            return self.cur_state, reward, done, info
+            return self._get_step_return(self.cur_state, reward, done)
         # Update constraint variables
         if action == 0:
             self.res_capacity = self.graph.capacity
@@ -118,9 +117,7 @@ class EnvESPPRC(gym.Env):
         if done == True:
             self.routes[-1].append(0)
             reward += self.end_reward_function(action)
-        # get mask
-        info["mask"] = self._get_mask()
-        return self.cur_state, reward, done, info
+        return self._get_step_return(self.cur_state, reward, done)
 
     def _check_infeasible(self, next_node):
         """_check_feasible ( 0 -> feasible, 1 -> infeasible
@@ -154,6 +151,21 @@ class EnvESPPRC(gym.Env):
         if mask.sum() == len(mask):
             mask[0] = False
         return mask
+
+    def _get_step_return(self, state, reward, done):
+        """_get_step_return
+
+        Args:
+            reward (float): reward of current step
+            done (bool): done of current step
+
+        Returns:
+            step_return (float): return of current step
+        """
+        terminated = done
+        truncated = False
+        info = {"mask": self._get_mask()}
+        return state.flatten(), reward, terminated, truncated, info
 
     def stop_condition(self, action):
         return action == 0
@@ -194,7 +206,8 @@ class EnvESPPRC(gym.Env):
                         break
                     except:
                         action = input("  Please type right action: ") 
-                state, reward, done, info = self.step(int(action))
+                state, reward, terminated, truncated, info = self.step(int(action))
+                done = terminated
                 mask = info["mask"].tolist()
                 reward_sum += reward
                 print("  reward = {:.2f}, done = {}".format(reward, done))
@@ -214,7 +227,7 @@ class EnvVRPTW(EnvESPPRC):
         return -self.graph.disMatrix[self.cur_pos, action]
 
 class EnvTSP(EnvVRPTW):
-    def reset(self):
+    def reset(self, seed=None):
         self.check_demand = False
         self.check_timeWindow = False
         state, info = super().reset()
@@ -227,9 +240,9 @@ class EnvTSP(EnvVRPTW):
 
 if __name__ == "__main__":
     file_name = "solomon_100\\R101.txt"
-    # env = EnvESPPRC(file_name)
+    env = EnvESPPRC(file_name, lmt_node_num=5)
     # env = EnvVRPTW(file_name, lmt_node_num=5)
-    env = EnvTSP(file_name, lmt_node_num=5)
+    # env = EnvTSP(file_name, lmt_node_num=5)
     # human interact test
     env.human_test(render=False)
     
